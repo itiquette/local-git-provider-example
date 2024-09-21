@@ -1,0 +1,5 @@
+config
+gitlab
+.vscode
+gitea
+postgres

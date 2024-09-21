@@ -1,0 +1,153 @@
+= Running a Local Git Provider Example (with Podman - Compose)
+
+:doctype: article
+:description: An example project for running Git Providers with Podman and Compose
+:license-type: CC0-1.0
+:source-highlighter: rouge
+:rouge-style: github
+:toc: preamble
+:imagesdir: assets/images
+:hardbreaks-option:
+:showtitle:
+:icons: font
+
+ifdef::env-github[]
+:warning-caption: :warning:
+:tip-caption: :bulb:
+:note-caption: :information_source:
+:important-caption: :heavy_exclamation_mark:
+:caution-caption: :fire:
+endif::[]
+
+== Introduction
+
+This project provides an compose example of how to run Git Providers with Podman and Docker Compose. It currently has:
+
+* Local GitLab
+* Local Gitea
+
+== Prerequisites
+
+* Ubuntu 24.04 (might work with other versions, only tested on 24.04)
+* Podman 4.9.3 or later installed and working
+* Podman running as a rootless service
+* `docker` aliased to `podman`
+* `DOCKER_HOST` exported to the Podman socket
+* Podman network backend set to netavark
+* Docker Compose v2.28.1 or later
+
+[NOTE]
+====
+Older versions than those mentioned above are not tested, but could work.
+====
+
+=== Verifying Prerequisites
+
+.Check Podman version:
+[source,shell]
+----
+podman info  # see version
+----
+
+.Verify Podman is running as a rootless service:
+[source,shell]
+----
+podman info | grep -A2 'remoteSocket' # should list exists true and the socket
+----
+
+.Confirm docker is aliased to podman:
+[source,shell]
+----
+alias docker=podman
+----
+
+.Verify DOCKER_HOST is exported:
+[source,shell]
+----
+export DOCKER_HOST=unix:///run/user/1000/podman/podman.sock # or whatever your podman socket is, see podman info
+----
+
+.Check Podman network backend:
+[source,shell]
+----
+podman info | grep -A2 'backend' # only tested with netavark
+----
+
+.Verify Docker Compose version:
+[source,shell]
+----
+docker compose version # v2 and v2.28.1++
+----
+
+== GitLab Setup
+
+=== Running GitLab
+
+.1. Run compose:
+[source,console]
+----
+podman compose pull && podman compose --profile gitlab up 
+----
+
+[NOTE]
+====
+Before configuring your first runner, you may see errors like "ERROR: Failed to load config stat /etc/gitlab-runner/config.toml:". These can be ignored for now.
+
+You might also need to give rootless Podman port rights:
+[source,console]
+----
+sudo sysctl net.ipv4.ip_unprivileged_port_start=80
+----
+====
+
+.2. Change root password for GitLab CE:
+[source,console]
+----
+podman exec -it gitlab-ce gitlab-rake "gitlab:password:reset[root]"
+----
+
+.3. Apply changes:
+[source,console]
+----
+podman compose down && podman compose --profile gitlab up
+----
+
+.4. Access GitLab UI:
+Visit http://127.0.0.1[GitLab UI] and login with root/your_new_password
+
+=== Configuring GitLab Runner
+
+.5. Navigate to the admin area in GUI (Search -> Admin)
+
+.6. Add a new instance runner under CI-settings
+
+.7. Register the runner:
+[source,console]
+----
+podman exec -it gitlab-runner /bin/bash
+gitlab-runner register --url http://10.5.0.5/ --token <your_token>
+vi /etc/gitlab-runner/config.toml
+----
+
+.8. Configure the runner:
+Refer to the example runner configuration at `runner.example.toml` in this project. Ensure to add necessary settings, including `privileged` and `FF_NET..` for Podman. For more settings, see the https://docs.gitlab.com/runner/executors/docker.html#use-podman-to-run-docker-commands[GitLab Runner documentation].
+
+.9. Restart compose to apply runner configuration:
+[source,console]
+----
+podman compose down && podman compose up
+# Login to UI and check that the runner is online in the admin area
+----
+
+.10. Add test projects, CI pipelines, and start experimenting!
+
+== Gitea Setup
+
+[NOTE]
+====
+Gitea setup instructions are to be added.
+====
+
+== License
+
+This project is licensed under the link:LICENSE[Creative Commons CC0-1.0 License] - effectively placing it in the public domain. You may use it freely without attribution.
